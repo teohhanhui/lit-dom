@@ -32,8 +32,8 @@ export interface CycleDOMEvent extends Event {
   ownerTarget: Element;
 }
 
-export type IsolateSink<T extends LitTemplate> = (
-  s: Observable<T>,
+export type IsolateSink<T = any> = (
+  s: Observable<T> | any,
   scope: string
-) => Observable<T>;
+) => Observable<T> | any;
 

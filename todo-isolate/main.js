@@ -2,20 +2,81 @@ import {run} from '@cycle/run';
 import isolate from '@cycle/isolate';
 import {makeLitDOMDriver, html} from '../lib/es6/index.js';
 import {map, scan, startWith, filter, shareReplay} from 'rxjs/operators';
-import {merge, combineLatest, of} from 'rxjs';
+import {
+  tap,
+  defer,
+  merge,
+  combineLatest,
+  of,
+  switchAll,
+  withLatestFrom,
+  from,
+} from 'rxjs';
 
-// Simple TodoItem component for isolation testing
 function TodoItem(sources) {
-  const props$ =
-    sources.props$ || of({todo: {id: 0, text: '', completed: false}});
+  console.log('TodoItem created with sources:', {
+    DOM: sources.DOM,
+    namespace: sources.DOM ? sources.DOM.namespace : 'no DOM',
+    isolateModule: sources.DOM ? !!sources.DOM._isolateModule : 'no isolateModule',
+    isolateSink: sources.DOM ? typeof sources.DOM.isolateSink : 'no isolateSink'
+  });
 
-  const toggle$ = sources.DOM.select('.todo-checkbox').events('click');
-  const remove$ = sources.DOM.select('.todo-remove').events('click');
+  // Patch isolateSink to debug
+  if (sources.DOM && sources.DOM.isolateSink) {
+    const originalIsolateSink = sources.DOM.isolateSink;
+    sources.DOM.isolateSink = function(sink, scope) {
+      console.log('TodoItem isolateSink called with:', {sink, scope});
+      const result = originalIsolateSink.call(this, sink, scope);
+      console.log('TodoItem isolateSink result:', result);
+      return result;
+    };
+  }
+
+  const props$ =
+    sources.todo$ || of({todo: {id: 0, text: '', completed: false}});
+
+  const toggle$ = sources.DOM.select('.todo-checkbox')
+    .events('click')
+    .pipe(
+      tap(() => console.log('TodoItem toggle clicked')),
+      withLatestFrom(sources.todo$),
+      map(([e, todo]) => todo.id)
+    );
+
+  const removeSelector = sources.DOM.select('.todo-remove');
+  console.log('TodoItem remove selector created:', {
+    selector: removeSelector,
+    namespace: removeSelector.namespace
+  });
+  
+  // Test if elements can be found
+  removeSelector.elements().subscribe(elements => 
+    console.log('TodoItem found remove elements:', elements.length, elements)
+  );
+
+  const remove$ = removeSelector
+    .events('click')
+    .pipe(
+      tap((e) => {
+        console.log('TodoItem remove clicked, target:', e.target);
+        console.log('DOM source namespace:', sources.DOM.namespace);
+        console.log('IsolateModule getNamespace result:', sources.DOM._isolateModule.getNamespace(e.target));
+      }),
+      withLatestFrom(sources.todo$),
+      map(([e, todo]) => {
+        console.log('TodoItem remove mapping:', todo);
+        return todo.todo.id;
+      }),
+      tap(id => console.log('TodoItem remove id:', id))
+    );
+
+  console.log('TodoItem streams created, subscribing to test...');
+  remove$.subscribe(x => console.log('remove$ emitted:', x));
 
   const vdom$ = props$.pipe(
     map(props => {
       const {todo} = props;
-      return html`
+      const template = html`
         <li class="todo-item ${todo.completed ? 'completed' : ''}">
           <input
             type="checkbox"
@@ -26,6 +87,8 @@ function TodoItem(sources) {
           <button class="todo-remove">Remove</button>
         </li>
       `;
+      console.log('TodoItem template created:', template, '_isolate' in template ? template._isolate : 'no _isolate');
+      return template;
     })
   );
 
@@ -77,65 +140,29 @@ function main(sources) {
       },
     }))
   );
-
-  // Create isolated TodoItem components
-  const todo1 = isolate(
-    TodoItem,
-    'todo-1'
-  )({
-    ...sources,
-    props$: of({todo: {id: 1, text: 'Isolated Todo 1', completed: false}}),
-  });
-
-  const todo2 = isolate(
-    TodoItem,
-    'todo-2'
-  )({
-    ...sources,
-    props$: of({todo: {id: 2, text: 'Isolated Todo 2', completed: true}}),
-  });
-
-  const todo3 = isolate(
-    TodoItem,
-    'todo-3'
-  )({
-    ...sources,
-    props$: of({todo: {id: 3, text: 'Isolated Todo 3', completed: false}}),
-  });
-
-  // Collect events from isolated components
-  const isolatedToggles$ = merge(
-    todo1.toggle$.pipe(map(() => 1)),
-    todo2.toggle$.pipe(map(() => 2)),
-    todo3.toggle$.pipe(map(() => 3))
-  );
-
-  const isolatedRemoves$ = merge(
-    todo1.remove$.pipe(map(() => 1)),
-    todo2.remove$.pipe(map(() => 2)),
-    todo3.remove$.pipe(map(() => 3))
-  );
-
   // Simple state management
-  const toggleTodoAction$ = isolatedToggles$.pipe(
-    map(id => ({type: 'TOGGLE', payload: id}))
-  );
-
-  const removeTodoAction$ = isolatedRemoves$.pipe(
-    map(id => ({type: 'REMOVE', payload: id}))
-  );
 
   const clearCompletedAction$ = clearCompleted$.pipe(
     map(() => ({type: 'CLEAR_COMPLETED'}))
   );
 
+  // Use defer to break circular dependency
+  const componentActions$ = defer(() => {
+    console.log('defer evaluating component actions');
+    return merge(
+      componentsToggle$.pipe(tap(a => console.log('toggle action:', a))),
+      componentsRemove$.pipe(tap(a => console.log('remove action:', a)))
+    );
+  });
+
   const allActions$ = merge(
     of({type: 'INIT', payload: initialTodos}),
     addTodo$,
-    toggleTodoAction$,
-    removeTodoAction$,
-    clearCompletedAction$
-  );
+    clearCompletedAction$,
+    componentActions$
+  ).pipe(tap(action => console.log('all actions:', action)));
+
+  // Stats
 
   const todos$ = allActions$.pipe(
     scan((todos, action) => {
@@ -160,7 +187,13 @@ function main(sources) {
     }, initialTodos),
     shareReplay(1)
   );
-
+  const stats$ = todos$.pipe(
+    map(todos => ({
+      total: todos.length,
+      completed: todos.filter(t => t.completed).length,
+      remaining: todos.filter(t => !t.completed).length,
+    }))
+  );
   // Filter todos
   const filteredTodos$ = combineLatest([todos$, filter$]).pipe(
     map(([todos, filter]) => {
@@ -175,41 +208,73 @@ function main(sources) {
     })
   );
 
-  // Stats
-  const stats$ = todos$.pipe(
-    map(todos => ({
-      total: todos.length,
-      completed: todos.filter(t => t.completed).length,
-      remaining: todos.filter(t => !t.completed).length,
-    }))
+  const isolatedComponents$ = filteredTodos$.pipe(
+    map(todos =>
+      todos.map((todo, index) => {
+        console.log('Creating isolated component for todo:', todo.id);
+        const IsolatedTodoItem = isolate(TodoItem, `todo-${todo.id}`);
+        const componentSinks = IsolatedTodoItem({...sources, todo$: of({todo})});
+        console.log('Isolated component sinks:', componentSinks);
+        return componentSinks;
+      })
+    ),
+    shareReplay(1)
   );
 
+  const componentsToggle$ = isolatedComponents$.pipe(
+    map(components => components.map(c => c.toggle$)),
+    map(toggles => (toggles.length > 0 ? merge(...toggles) : of())),
+    switchAll(),
+    map(todoId => ({type: 'TOGGLE', payload: todoId})),
+    shareReplay(1)
+  );
   // Clear input
   const inputValue$ = addTodo$.pipe(
     map(() => ''),
     startWith('')
   );
 
+  const componentsDOMs$ = isolatedComponents$.pipe(
+    map(components => {
+      console.log('Components:', components.length);
+      return components.map(c => c.DOM);
+    }),
+    map(doms => {
+      console.log('DOM streams:', doms.length, doms);
+      if (doms.length > 0) {
+        // Need to convert xstreams back to RxJS for combineLatest
+        const rxjsDoms = doms.map(d => from(d));
+        return combineLatest(rxjsDoms);
+      }
+      return of([]);
+    }),
+    switchAll(),
+    tap(templates => {
+      console.log('Combined templates:', templates);
+      templates.forEach((t, i) => console.log(`Template ${i}:`, t, '_isolate' in t ? t._isolate : 'no _isolate'));
+    })
+  );
+
+  const componentsRemove$ = isolatedComponents$.pipe(
+    map(components => components.map(c => c.remove$)),
+    map(removes => (removes.length > 0 ? merge(...removes) : of())),
+    switchAll(),
+    tap(e => {
+      console.log('remove event', e);
+    }),
+    map(todoId => ({type: 'REMOVE', payload: todoId})),
+    shareReplay(1)
+  );
+
   // Render
   const vdom$ = combineLatest([
-    filteredTodos$,
+    componentsDOMs$,
     filter$,
     stats$,
     inputValue$,
-    todo1.DOM,
-    todo2.DOM,
-    todo3.DOM,
   ]).pipe(
     map(
-      ([
-        todos,
-        currentFilter,
-        stats,
-        inputValue,
-        todo1Dom,
-        todo2Dom,
-        todo3Dom,
-      ]) => html`
+      ([todoComponents, currentFilter, stats, inputValue]) => html`
         <div class="todo-app">
           <h1>📝 Cycle.js TODO List with Isolation</h1>
           <p style="text-align: center; color: #666; margin-bottom: 20px;">
@@ -250,36 +315,10 @@ function main(sources) {
               </button>
             </div>
 
-            <div class="isolation-demo-section">
-              <h4>🔒 Isolated Components Demo</h4>
-              <p>
-                These three todo items are isolated components, each with their
-                own scope:
-              </p>
-              <ul class="todo-list">
-                ${todo1Dom} ${todo2Dom} ${todo3Dom}
-              </ul>
-            </div>
-
             <div class="regular-todos-section">
               <h4>📋 Regular Todo List</h4>
               <ul class="todo-list">
-                ${todos.map(
-                  todo => html`
-                    <li
-                      class="todo-item ${todo.completed ? 'completed' : ''}"
-                      data-todo-id="${todo.id}"
-                    >
-                      <input
-                        type="checkbox"
-                        class="todo-checkbox"
-                        .checked=${todo.completed}
-                      />
-                      <span class="todo-text">${todo.text}</span>
-                      <button class="todo-remove">Remove</button>
-                    </li>
-                  `
-                )}
+                ${todoComponents.map((template, index) => html`<div data-component="${index}">${template}</div>`)}
               </ul>
             </div>
 
@@ -344,6 +383,8 @@ function main(sources) {
 
   return {
     DOM: vdom$,
+    // Make sure component actions are subscribed to by including them as sinks
+    componentActions: componentActions$,
   };
 }
 
