@@ -24,12 +24,13 @@
   "module": "lib/es6/index.js",
   "typings": "lib/cjs/index.d.ts",
   "types": "lib/cjs/index.d.ts",
-  "type": "module",
   "scripts": {
     "build": "yarn build-cjs && yarn build-es6",
     "build-cjs": "tsc --module commonjs --outDir ./lib/cjs",
     "build-es6": "tsc --module es6 --outDir ./lib/es6",
     "lint": "eslint src/**/*.ts --fix",
+    "test": "ava",
+    "test:watch": "ava --watch",
     "example": "./run-example.sh",
     "example:build": "yarn build && cd example && yarn install",
     "example:dev": "cd example && yarn dev",
@@ -37,20 +38,30 @@
     "example2:build": "yarn build && cd example2 && yarn install",
     "example2:dev": "cd example2 && yarn dev"
   },
+  "type": "module",
+  "ava": {
+    "timeout": "10s",
+    "files": ["test/**/*.js"],
+    "nodeArguments": ["--require=./test/setup.js"]
+  },
   "dependencies": {
     "lit-html": "^3.3.0",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
+    "@ava/typescript": "^5.0.0",
     "@cycle/isolate": "^5.2.0",
     "@types/node": "^24.0.1",
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",
+    "ava": "^6.4.0",
     "es6-map": "^0.1.5",
     "es6-set": "^0.1.6",
     "eslint": "^9.29.0",
+    "jsdom": "^26.1.0",
     "symbol-observable": "^4.0.0",
     "ts-node": "^10.9.2",
+    "tsimp": "^2.0.12",
     "typescript": "^5.8.3"
   },
   "engines": {

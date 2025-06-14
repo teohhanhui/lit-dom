@@ -1,0 +1,63 @@
+import test from 'ava';
+import { LitDOMSource } from '../src/LitDOMSource';
+import { Observable, of } from 'rxjs';
+const mockElement = document.createElement('div');
+const mockRootElement$ = of(mockElement);
+const mockSanitation$ = of(null);
+const mockIsolateModule = {
+    getElement: () => mockElement,
+};
+const mockEventDelegator = {
+    addEventListener: () => of({}),
+};
+test('LitDOMSource constructor should set properties', (t) => {
+    const source = new LitDOMSource(mockRootElement$, mockSanitation$, [], mockIsolateModule, mockEventDelegator, 'test');
+    t.truthy(source);
+    t.is(source._isolateModule, mockIsolateModule);
+    t.deepEqual(source.namespace, []);
+});
+test('LitDOMSource.select should create new source with selector namespace', (t) => {
+    const source = new LitDOMSource(mockRootElement$, mockSanitation$, [], mockIsolateModule, mockEventDelegator, 'test');
+    const selected = source.select('.test');
+    t.not(selected, source);
+    t.deepEqual(selected.namespace, [{ type: 'selector', scope: '.test' }]);
+});
+test('LitDOMSource.select should handle :root selector', (t) => {
+    const source = new LitDOMSource(mockRootElement$, mockSanitation$, [{ type: 'selector', scope: '.parent' }], mockIsolateModule, mockEventDelegator, 'test');
+    const selected = source.select(':root');
+    t.deepEqual(selected.namespace, []);
+});
+test('LitDOMSource.select should throw error for non-string selector', (t) => {
+    const source = new LitDOMSource(mockRootElement$, mockSanitation$, [], mockIsolateModule, mockEventDelegator, 'test');
+    t.throws(() => {
+        source.select(123);
+    }, { message: /DOM driver's select\(\) expects the argument to be a string as a CSS selector/ });
+});
+test('LitDOMSource.events should return Observable', (t) => {
+    const source = new LitDOMSource(mockRootElement$, mockSanitation$, [], mockIsolateModule, mockEventDelegator, 'test');
+    const events$ = source.events('click');
+    t.true(events$ instanceof Observable);
+});
+test('LitDOMSource.events should throw error for non-string event type', (t) => {
+    const source = new LitDOMSource(mockRootElement$, mockSanitation$, [], mockIsolateModule, mockEventDelegator, 'test');
+    t.throws(() => {
+        source.events(123);
+    }, { message: /DOM driver's events\(\) expects argument to be a string representing the event type to listen for/ });
+});
+test('LitDOMSource.elements should return Observable<Array<Element>>', (t) => {
+    const source = new LitDOMSource(mockRootElement$, mockSanitation$, [], mockIsolateModule, mockEventDelegator, 'test');
+    const elements$ = source.elements();
+    t.true(elements$ instanceof Observable);
+});
+test('LitDOMSource.element should return Observable<Element>', (t) => {
+    const source = new LitDOMSource(mockRootElement$, mockSanitation$, [], mockIsolateModule, mockEventDelegator, 'test');
+    const element$ = source.element();
+    t.true(element$ instanceof Observable);
+});
+test('LitDOMSource.dispose should not throw', (t) => {
+    const source = new LitDOMSource(mockRootElement$, mockSanitation$, [], mockIsolateModule, mockEventDelegator, 'test');
+    t.notThrows(() => {
+        source.dispose();
+    });
+});
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiTGl0RE9NU291cmNlLnRlc3QuanMiLCJzb3VyY2VSb290IjoiL2hvbWUvZmJuL2Rldi9saXQtZG9tLyIsInNvdXJjZXMiOlsidGVzdC9MaXRET01Tb3VyY2UudGVzdC50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxPQUFPLElBQXdCLE1BQU0sS0FBSyxDQUFDO0FBQzNDLE9BQU8sRUFBQyxZQUFZLEVBQUMsTUFBTSxxQkFBcUIsQ0FBQztBQUdqRCxPQUFPLEVBQUMsVUFBVSxFQUFFLEVBQUUsRUFBQyxNQUFNLE1BQU0sQ0FBQztBQUVwQyxNQUFNLFdBQVcsR0FBRyxRQUFRLENBQUMsYUFBYSxDQUFDLEtBQUssQ0FBQyxDQUFDO0FBQ2xELE1BQU0sZ0JBQWdCLEdBQUcsRUFBRSxDQUFDLFdBQVcsQ0FBQyxDQUFDO0FBQ3pDLE1BQU0sZUFBZSxHQUFHLEVBQUUsQ0FBQyxJQUFJLENBQUMsQ0FBQztBQUVqQyxNQUFNLGlCQUFpQixHQUFHO0lBQ3hCLFVBQVUsRUFBRSxHQUFHLEVBQUUsQ0FBQyxXQUFXO0NBQ0YsQ0FBQztBQUU5QixNQUFNLGtCQUFrQixHQUFHO0lBQ3pCLGdCQUFnQixFQUFFLEdBQUcsRUFBRSxDQUFDLEVBQUUsQ0FBQyxFQUFXLENBQUM7Q0FDWCxDQUFDO0FBRS9CLElBQUksQ0FBQyxnREFBZ0QsRUFBRSxDQUFDLENBQW1CLEVBQUUsRUFBRTtJQUM3RSxNQUFNLE1BQU0sR0FBRyxJQUFJLFlBQVksQ0FDN0IsZ0JBQWdCLEVBQ2hCLGVBQWUsRUFDZixFQUFFLEVBQ0YsaUJBQWlCLEVBQ2pCLGtCQUFrQixFQUNsQixNQUFNLENBQ1AsQ0FBQztJQUVGLENBQUMsQ0FBQyxNQUFNLENBQUMsTUFBTSxDQUFDLENBQUM7SUFDakIsQ0FBQyxDQUFDLEVBQUUsQ0FBQyxNQUFNLENBQUMsY0FBYyxFQUFFLGlCQUFpQixDQUFDLENBQUM7SUFDL0MsQ0FBQyxDQUFDLFNBQVMsQ0FBQyxNQUFNLENBQUMsU0FBUyxFQUFFLEVBQUUsQ0FBQyxDQUFDO0FB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
