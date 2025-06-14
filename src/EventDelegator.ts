@@ -114,7 +114,6 @@ export class EventDelegator {
     options: EventsFnOptions,
     bubbles?: boolean
   ): Observable<Event> {
-    console.log('addEventListener called:', {eventType, namespace, options, bubbles});
     const subject = new Subject<Event>();
 
     const scopeChecker = new ScopeChecker(namespace, this.isolateModule);
@@ -125,9 +124,7 @@ export class EventDelegator {
         : bubbles;
 
     if (shouldBubble) {
-      console.log('Setting up bubbling listener for:', eventType);
       if (!this.domListeners.has(eventType)) {
-        console.log('Creating new DOM listener for:', eventType);
         this.setupDOMListener(eventType, !!options.passive);
       }
 
@@ -234,12 +231,8 @@ export class EventDelegator {
     const n = scopeChecker._namespace;
     let max = n.length;
 
-    console.log('insertListener:', {eventType, namespace: n, max});
-
     do {
-      const listeners = this.getVirtualListeners(eventType, n, true, max);
-      console.log('insertListener getVirtualListeners:', {eventType, max, listenersSize: listeners.length});
-      relevantSets.push(listeners);
+      relevantSets.push(this.getVirtualListeners(eventType, n, true, max));
       max--;
     } while (max >= 0 && n[max].type !== 'total');
 
@@ -253,7 +246,6 @@ export class EventDelegator {
     };
 
     for (let i = 0; i < relevantSets.length; i++) {
-      console.log('insertListener adding destination to set:', {setIndex: i, priority: n.length});
       relevantSets[i].add(destination, n.length);
     }
 
@@ -372,12 +364,10 @@ export class EventDelegator {
     passive: boolean,
     bubbles = true
   ): void {
-    console.log('onEvent called:', {_eventType, event, target: event.target, bubbles});
     const cycleEvent = this.patchEvent(event);
     const rootElement = this.isolateModule.getRootElement(
       event.target as Element
     );
-    console.log('onEvent rootElement:', rootElement);
 
     if (bubbles) {
       const namespace = this.isolateModule.getNamespace(
@@ -546,37 +536,17 @@ export class EventDelegator {
     passive: boolean
   ): void {
     if (!rootElement) {
-      console.log('doBubbleStep: no rootElement');
       return;
     }
-    console.log('doBubbleStep:', {_eventType, elm, useCapture, passive, listenersCount: listeners.length || (listeners as any).size || 0});
     this.mutateEventCurrentTarget(event, elm);
     listeners.forEach(dest => {
-      console.log('doBubbleStep checking destination:', {
-        destPassive: dest.passive,
-        destUseCapture: dest.useCapture,
-        passive,
-        useCapture,
-        namespace: dest.scopeChecker._namespace
-      });
       if (dest.passive === passive && dest.useCapture === useCapture) {
         const sel = getSelectors(dest.scopeChecker._namespace);
-        const inScope = dest.scopeChecker.isDirectlyInScope(elm);
-        const matches = sel === '' || elm.matches(sel);
-        console.log('doBubbleStep event check:', {
-          sel,
-          inScope,
-          matches,
-          propagationStopped: event.propagationHasBeenStopped,
-          elementNamespace: dest.scopeChecker._namespace,
-          targetNamespace: this.isolateModule.getNamespace(elm)
-        });
         if (
           !event.propagationHasBeenStopped &&
-          inScope &&
-          matches
+          dest.scopeChecker.isDirectlyInScope(elm) &&
+          (sel === '' || elm.matches(sel))
         ) {
-          console.log('doBubbleStep: FIRING EVENT!', _eventType);
           preventDefaultConditional(
             event,
             dest.preventDefault as PreventDefaultOpt

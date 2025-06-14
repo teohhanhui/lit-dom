@@ -1,24 +1,13 @@
 export {makeLitDOMDriver} from './makeLitDOMDriver';
 export {LitDOMSource} from './LitDOMSource';
-export {LitTemplate, EventsFnOptions, LitDOMDriverOptions, Scope, IsolateSink} from './types';
+export {
+  LitTemplate,
+  EventsFnOptions,
+  LitDOMDriverOptions,
+  Scope,
+  IsolateSink,
+} from './types';
 export {makeIsolateSink, getScopeObj} from './isolate';
-
-// Performance utilities
-export {
-  debounceTemplate,
-  throttleTemplate,
-  distinctTemplates,
-  animationFrame,
-  batchTemplates
-} from './performance';
-
-// Memoization utilities
-export {
-  memoizeTemplate,
-  memo,
-  shallowEqual,
-  clearMemoizationCaches
-} from './memoization';
 
 // Re-export useful lit-html types and functions
 export {html, svg, render, TemplateResult} from 'lit-html';

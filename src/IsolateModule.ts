@@ -38,12 +38,7 @@ export class IsolateModule {
   }
 
   public getRootElement(elm: Element): Element | undefined {
-    console.log('getRootElement called for:', elm, 'tag:', elm.tagName, 'class:', elm.className);
-    console.log('namespaceByElement has elm directly:', this.namespaceByElement.has(elm));
-    console.log('namespaceByElement keys:', Array.from(this.namespaceByElement.keys()).map(el => ({tag: el.tagName, id: el.id, class: el.className})));
-    
     if (this.namespaceByElement.has(elm)) {
-      console.log('getRootElement: returning elm directly');
       return elm;
     }
 
@@ -52,24 +47,19 @@ export class IsolateModule {
       const parent = curr.parentNode;
       if (!parent || parent.nodeType !== Node.ELEMENT_NODE) {
         // If we reach a non-element node or null, stop traversing
-        console.log('getRootElement: reached non-element parent, breaking');
         break;
       }
       curr = parent as Element;
-      console.log('getRootElement: checking parent:', curr.tagName, curr.id, curr.className);
-      
+
       if (curr.tagName === 'HTML') {
         // We've reached HTML without finding a registered element
         // This means we need to use the closest registered element or return undefined
-        console.log('getRootElement: reached HTML, breaking');
         break;
       }
     }
-    
+
     // Return the element if it's registered, otherwise undefined
-    const result = this.namespaceByElement.has(curr) ? curr : undefined;
-    console.log('getRootElement: final result:', result ? {tag: result.tagName, id: result.id, class: result.className} : 'undefined');
-    return result;
+    return this.namespaceByElement.has(curr) ? curr : undefined;
   }
 
   public getNamespace(elm: Element): Array<Scope> | undefined {
@@ -99,4 +89,3 @@ export class IsolateModule {
     this.elementsBeingRemoved = [];
   }
 }
-
