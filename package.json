@@ -3,13 +3,11 @@
   "version": "1.0.0",
   "description": "The lit-html DOM Driver for Cycle.js, based on lit-html and RxJS",
   "license": "MIT",
-  "homepage": "https://cycle.js.org",
-  "bugs": "https://github.com/cyclejs/cyclejs/issues",
-  "repository": "https://github.com/cyclejs/cyclejs/tree/master/lit-dom",
+  "packageManager": "yarn@4.9.2",
   "contributors": [
     {
-      "name": "Claude AI",
-      "email": "noreply@anthropic.com"
+      "name": "Fabiano Taioli",
+      "email": "ftaioli@gmail.com"
     }
   ],
   "keywords": [
@@ -20,33 +18,24 @@
     "unidirectional",
     "mvi",
     "virtual-dom",
-    "lit-html",
-    "performance"
+    "lit-html"
   ],
   "main": "lib/cjs/index.js",
   "module": "lib/es6/index.js",
   "typings": "lib/cjs/index.d.ts",
   "types": "lib/cjs/index.d.ts",
+  "type": "module",
   "scripts": {
-    "build": "pnpm run build-cjs && pnpm run build-es6",
+    "build": "yarn build-cjs && yarn build-es6",
     "build-cjs": "tsc --module commonjs --outDir ./lib/cjs",
     "build-es6": "tsc --module es6 --outDir ./lib/es6",
     "lint": "eslint src/**/*.ts --fix",
-    "docs": "cd .. && node .scripts/make-api-docs.js lit-dom",
-    "changelog": "cd .. && node .scripts/update-changelogs.js lit-dom",
-    "test-node": "mocha test/node/*.ts --require ts-node/register --exit",
-    "test-browser": "karma start",
-    "test": "pnpm run test-node && pnpm run test-browser",
-    "test-ci": "CI=true ../.scripts/retry.sh pnpm test",
-    "test-watch": "WATCH=true pnpm test",
-    "test-live": "LIVE=true karma start --watch",
     "example": "./run-example.sh",
-    "example:build": "pnpm run build && cd example && pnpm install",
-    "example:dev": "cd example && pnpm run dev",
+    "example:build": "yarn build && cd example && yarn install",
+    "example:dev": "cd example && yarn dev",
     "example2": "./run-example2.sh",
-    "example2:build": "pnpm run build && cd example2 && pnpm install",
-    "example2:dev": "cd example2 && pnpm run dev",
-    "prepublishOnly": "pnpm run build && pnpm test"
+    "example2:build": "yarn build && cd example2 && yarn install",
+    "example2:dev": "cd example2 && yarn dev"
   },
   "dependencies": {
     "lit-html": "^3.1.0",
@@ -63,12 +52,6 @@
     "es6-map": "^0.1.5",
     "es6-set": "^0.1.5",
     "eslint": "^8.0.0",
-    "karma": "^6.4.0",
-    "karma-browserstack-launcher": "^1.6.0",
-    "karma-chrome-launcher": "^3.2.0",
-    "karma-firefox-launcher": "^2.1.0",
-    "karma-mocha": "^2.0.1",
-    "karma-typescript": "^5.5.0",
     "mocha": "^10.0.0",
     "mutation-observer": "1.0.3",
     "simulant": "^0.2.2",
@@ -79,12 +62,5 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "funding": {
-    "type": "opencollective",
-    "url": "https://opencollective.com/cyclejs"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

@@ -43,12 +43,12 @@ From the root lit-dom directory:
 
 ```bash
 # Run the example
-./run-todo-example.sh
+./run-example-todo-isolate.sh
 
 # Or manually:
-cd todo-example
-pnpm install
-pnpm run dev
+cd examples/todo-isolate
+yarn install
+yarn dev
 ```
 
 Then open http://localhost:3002 in your browser.

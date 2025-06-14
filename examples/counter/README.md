@@ -8,18 +8,18 @@ This example demonstrates the usage of `@cycle/lit-dom` with performance optimiz
 
 1. Make sure the lit-dom package is built:
    ```bash
-   cd ..
-   pnpm run build
+   cd ../..
+   yarn build
    ```
 
 2. Install example dependencies:
    ```bash
-   pnpm install
+   yarn install
    ```
 
 3. Start the development server:
    ```bash
-   pnpm run dev
+   yarn dev
    ```
 
 The example will open in your browser (usually at `http://localhost:3000` or `http://localhost:3001`).

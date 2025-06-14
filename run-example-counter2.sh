@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "🔨 Building @cycle/lit-dom..."
-pnpm run build
+yarn build
 
 if [ $? -ne 0 ]; then
     echo "❌ Build failed!"
@@ -11,8 +11,8 @@ fi
 echo "✅ Build successful!"
 
 echo "📦 Installing example dependencies..."
-cd example
-pnpm install
+cd examples/counter2
+yarn install
 
 if [ $? -ne 0 ]; then
     echo "❌ Failed to install dependencies!"
@@ -23,4 +23,4 @@ echo "🚀 Starting development server..."
 echo "📍 The example will open at http://localhost:3000"
 echo "💡 Open browser console to see memoization in action!"
 echo ""
-pnpm run dev
+yarn dev

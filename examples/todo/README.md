@@ -47,8 +47,8 @@ From the root lit-dom directory:
 
 # Or manually:
 cd todo-example
-pnpm install
-pnpm run dev
+yarn install
+yarn dev
 ```
 
 Then open http://localhost:3002 in your browser.
