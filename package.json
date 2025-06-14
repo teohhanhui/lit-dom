@@ -41,16 +41,21 @@
   "type": "module",
   "ava": {
     "timeout": "10s",
-    "files": ["test/**/*.js"],
-    "nodeArguments": ["--require=./test/setup.js"]
+    "files": [
+      "test/**/*.js"
+    ],
+    "nodeArguments": [
+      "--require=./test/setup.js"
+    ]
   },
   "dependencies": {
-    "lit-html": "^3.3.0",
-    "rxjs": "^7.8.2"
+    "lit-html": "^3.3.0"
   },
   "devDependencies": {
     "@ava/typescript": "^5.0.0",
+    "@cycle/dom": "^23.1.0",
     "@cycle/isolate": "^5.2.0",
+    "@cycle/run": "^5.7.0",
     "@types/node": "^24.0.1",
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",
@@ -59,6 +64,7 @@
     "es6-set": "^0.1.6",
     "eslint": "^9.29.0",
     "jsdom": "^26.1.0",
+    "rxjs": "^7.8.2",
     "symbol-observable": "^4.0.0",
     "ts-node": "^10.9.2",
     "tsimp": "^2.0.12",

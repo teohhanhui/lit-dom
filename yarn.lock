@@ -83,6 +83,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@cycle/dom@npm:^23.1.0":
+  version: 23.1.0
+  resolution: "@cycle/dom@npm:23.1.0"
+  dependencies:
+    "@cycle/run": "npm:^5.2.0"
+    snabbdom: "npm:^3.4.0"
+    snabbdom-selector: "npm:^5.0.0"
+    xstream: "npm:*"
+  checksum: 10c0/62d7d62df8cb42b53904e2215df6bd622cc92b816d9a7824d428b44778948171974e22aa49a52a1d2c6bd28a4d4d85a3fecc88d6913f12f312218afc20a858b7
+  languageName: node
+  linkType: hard
+
 "@cycle/isolate@npm:^5.2.0":
   version: 5.2.0
   resolution: "@cycle/isolate@npm:5.2.0"
@@ -98,7 +110,9 @@ __metadata:
   resolution: "@cycle/lit-dom@workspace:."
   dependencies:
     "@ava/typescript": "npm:^5.0.0"
+    "@cycle/dom": "npm:^23.1.0"
     "@cycle/isolate": "npm:^5.2.0"
+    "@cycle/run": "npm:^5.7.0"
     "@types/node": "npm:^24.0.1"
     "@typescript-eslint/eslint-plugin": "npm:^8.34.0"
     "@typescript-eslint/parser": "npm:^8.34.0"
@@ -116,7 +130,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@cycle/run@npm:^5.2.0":
+"@cycle/run@npm:^5.2.0, @cycle/run@npm:^5.7.0":
   version: 5.7.0
   resolution: "@cycle/run@npm:5.7.0"
   dependencies:
@@ -2686,6 +2700,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"snabbdom-selector@npm:^5.0.0":
+  version: 5.0.0
+  resolution: "snabbdom-selector@npm:5.0.0"
+  dependencies:
+    tree-selector: "npm:^2.1.0"
+  peerDependencies:
+    snabbdom: "*"
+  checksum: 10c0/4669e7d83dfff4bc67f2722a0803a3667558ef816eb9af9119bbf70904d3d5d538a2456df6ce989aa67fc19adde5fd792b70f052bbd4ed1552527a3e56f225a9
+  languageName: node
+  linkType: hard
+
+"snabbdom@npm:^3.4.0":
+  version: 3.6.2
+  resolution: "snabbdom@npm:3.6.2"
+  checksum: 10c0/5b6763128458fde2ec3c32d3753650db7ab2a66ebc233696e201c65d41e976fdce038857056ccdf12c23540fd3745bbdf48c4819f061878d7546c2a5fcd9b1ca
+  languageName: node
+  linkType: hard
+
 "sock-daemon@npm:^1.4.2":
   version: 1.4.2
   resolution: "sock-daemon@npm:1.4.2"
@@ -2904,6 +2936,13 @@ __metadata:
   version: 0.0.3
   resolution: "tr46@npm:0.0.3"
   checksum: 10c0/047cb209a6b60c742f05c9d3ace8fa510bff609995c129a37ace03476a9b12db4dbf975e74600830ef0796e18882b2381fb5fb1f6b4f96b832c374de3ab91a11
+  languageName: node
+  linkType: hard
+
+"tree-selector@npm:^2.1.0":
+  version: 2.1.1
+  resolution: "tree-selector@npm:2.1.1"
+  checksum: 10c0/15d54b7f17ee89a8a7fd2a713aafc489ff77fb792a39c37e2b5e47608e82d81e8f09a62b0a30d98ba47f9755b349295824ac76cec1c0849b6fbe2f02a5cab52d
   languageName: node
   linkType: hard
 
@@ -3207,7 +3246,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"xstream@npm:10.x || 11.x, xstream@npm:^11.7.0":
+"xstream@npm:*, xstream@npm:10.x || 11.x, xstream@npm:^11.7.0":
   version: 11.14.0
   resolution: "xstream@npm:11.14.0"
   dependencies:
