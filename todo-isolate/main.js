@@ -38,9 +38,17 @@ function TodoItem(sources) {
   const toggle$ = sources.DOM.select('.todo-checkbox')
     .events('click')
     .pipe(
-      tap(() => console.log('TodoItem toggle clicked')),
+      tap((e) => {
+        console.log('TodoItem toggle clicked, target:', e.target);
+        console.log('TodoItem toggle DOM source namespace:', sources.DOM.namespace);
+        console.log('TodoItem toggle IsolateModule getNamespace result:', sources.DOM._isolateModule.getNamespace(e.target));
+      }),
       withLatestFrom(sources.todo$),
-      map(([e, todo]) => todo.id)
+      map(([e, todo]) => {
+        console.log('TodoItem toggle mapping:', todo);
+        return todo.todo.id;
+      }),
+      tap(id => console.log('TodoItem toggle id:', id))
     );
 
   const removeSelector = sources.DOM.select('.todo-remove');
@@ -225,7 +233,9 @@ function main(sources) {
     map(components => components.map(c => c.toggle$)),
     map(toggles => (toggles.length > 0 ? merge(...toggles) : of())),
     switchAll(),
+    tap(todoId => console.log('toggle event', todoId)),
     map(todoId => ({type: 'TOGGLE', payload: todoId})),
+    tap(action => console.log('toggle action:', action)),
     shareReplay(1)
   );
   // Clear input

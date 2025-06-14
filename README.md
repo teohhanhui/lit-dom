@@ -1,15 +1,380 @@
 # @cycle/lit-dom
 
-A high-performance DOM driver for Cycle.js based on lit-html and RxJS.
+A Cycle.js DOM driver powered by [lit-html](https://lit.dev/docs/libraries/lit-html/) for modern, efficient template rendering with full component isolation support.
 
-## Features
+## Overview
 
-- **Lit-html rendering**: Leverage lit-html's efficient template rendering with native DOM updates
-- **RxJS integration**: Built specifically for RxJS observables with optimized operators
-- **Isolation support**: Full support for Cycle.js isolation patterns for component encapsulation  
-- **Performance optimized**: Includes memoization, debouncing, and batching utilities
-- **Type-safe**: Written in TypeScript with comprehensive type definitions
-- **Small bundle size**: Efficient implementation focused on performance
+`@cycle/lit-dom` provides a lit-html-based alternative to the native Cycle.js DOM driver (`@cycle/dom`). It leverages lit-html's efficient template literals and rendering engine while maintaining full compatibility with Cycle.js patterns including `@cycle/isolate` for component isolation.
+
+## Architecture Comparison
+
+### Native DOM Driver vs lit-dom
+
+| Aspect | Native DOM (`@cycle/dom`) | lit-dom (`@cycle/lit-dom`) |
+|--------|---------------------------|----------------------------|
+| **Template Engine** | Snabbdom (Virtual DOM) | lit-html (Template Literals) |
+| **Template Syntax** | JSX or hyperscript helpers | Tagged template literals |
+| **Bundle Size** | Larger (includes Snabbdom) | Smaller (lit-html is lightweight) |
+| **Performance** | Virtual DOM diffing | Efficient template updating |
+| **Isolation Support** | ✅ Full support | ✅ Full support (our implementation) |
+| **Ecosystem** | Mature, extensive | Growing, modern |
+
+### Key Differences
+
+1. **Template Syntax**:
+   ```javascript
+   // Native DOM (hyperscript)
+   div('.my-class', [
+     h1('Hello'),
+     button({attrs: {type: 'button'}}, 'Click me')
+   ])
+
+   // lit-dom (template literals)
+   html`
+     <div class="my-class">
+       <h1>Hello</h1>
+       <button type="button">Click me</button>
+     </div>
+   `
+   ```
+
+2. **Rendering Engine**:
+   - **Native DOM**: Uses Snabbdom's virtual DOM with diffing algorithms
+   - **lit-dom**: Uses lit-html's efficient template literal parsing and targeted updates
+
+3. **Bundle Impact**:
+   - **Native DOM**: Includes Snabbdom (~15KB gzipped)
+   - **lit-dom**: Uses lit-html (~8KB gzipped)
+
+## Isolation System Implementation
+
+### Overview
+
+The isolation system in lit-dom ensures that components can be safely composed without interfering with each other. Each isolated component operates within its own "namespace" that scopes DOM selections and event handling.
+
+### Source Isolation (`isolateSource`)
+
+When a component is isolated, the DOM source is scoped to only see elements within that component's namespace:
+
+```javascript
+// Creates a new DOM source with extended namespace
+isolateSource(source: LitDOMSource, scope: string): LitDOMSource {
+  return new LitDOMSource(
+    source._rootElement$,
+    source._sanitation$,
+    source._namespace.concat(getScopeObj(scope)), // Extended namespace
+    source._isolateModule,
+    source._eventDelegator,
+    source._name
+  );
+}
+```
+
+**Key Features**:
+- **Namespace Extension**: Each isolation scope adds to the namespace chain
+- **Element Finding**: Uses `ElementFinder` to locate elements within the namespace
+- **Event Filtering**: Only receives events from elements in the component's scope
+
+### Sink Isolation (`isolateSink`)
+
+The sink isolation processes lit-html templates to add isolation metadata:
+
+```javascript
+// Processes templates to add _isolate metadata
+isolateSink(sink: Stream<LitTemplate>, scope: string): Stream<LitTemplate>
+```
+
+**Process**:
+1. **Template Detection**: Identifies lit-html templates by checking for `_$litType$` property
+2. **Metadata Addition**: Adds `_isolate` array with namespace information
+3. **Recursive Processing**: Handles nested templates and template arrays
+
+**Example**:
+```javascript
+// Input template
+{
+  _$litType$: 1,
+  strings: ['<div class="item">', '</div>'],
+  values: ['Hello']
+}
+
+// Output with isolation
+{
+  _$litType$: 1,
+  strings: ['<div class="item">', '</div>'],
+  values: ['Hello'],
+  _isolate: [{type: 'sibling', scope: 'my-component'}] // Added isolation metadata
+}
+```
+
+### Namespace Management
+
+Namespaces in lit-dom are hierarchical arrays of scope objects:
+
+```javascript
+type Scope = {
+  type: 'sibling' | 'total' | 'selector';
+  scope: string;
+};
+
+// Example namespace for nested isolation
+[
+  {type: 'sibling', scope: 'app'},
+  {type: 'sibling', scope: 'todo-list'}, 
+  {type: 'sibling', scope: 'todo-item-1'}
+]
+```
+
+**Namespace Types**:
+- **`sibling`**: Isolates from sibling components at the same level
+- **`total`**: Complete isolation (most common)
+- **`selector`**: CSS selector-based scoping
+
+### Element Registration Process
+
+Unlike the native DOM driver (which hooks into Snabbdom's lifecycle), lit-dom uses a post-render registration approach:
+
+#### 1. Template Processing
+```javascript
+// During isolation, templates get _isolate metadata
+template._isolate = [{type: 'sibling', scope: 'todo-1'}]
+```
+
+#### 2. Post-Render Registration
+```javascript
+// After lit-html renders, scan for isolated elements
+function registerIsolatedElementsAfterRender(template, rootElement, isolateModule) {
+  const isolatedTemplates = collectIsolatedTemplates(template);
+  const componentElements = rootElement.querySelectorAll('.todo-item');
+  
+  // Register each element with its namespace
+  componentElements.forEach((element, index) => {
+    const namespace = isolatedTemplates[index];
+    isolateModule.insertElement(namespace, element);
+    
+    // Register child elements too
+    element.querySelectorAll('*').forEach(child => {
+      isolateModule.insertElement(namespace, child);
+    });
+  });
+}
+```
+
+#### 3. Event Delegation
+```javascript
+// EventDelegator routes events based on registered namespaces
+onEvent(eventType, event) {
+  const namespace = isolateModule.getNamespace(event.target);
+  if (namespace) {
+    routeEventToComponents(event, namespace);
+  }
+}
+```
+
+### Dynamic Component Support
+
+lit-dom supports dynamic component creation through:
+
+1. **Stream-based Component Creation**:
+   ```javascript
+   const components$ = items$.pipe(
+     map(items => items.map(item => 
+       isolate(TodoItem, `todo-${item.id}`)({...sources, item$: of(item)})
+     ))
+   );
+   ```
+
+2. **Automatic Registration**: New components are automatically registered when templates re-render
+
+3. **Cleanup**: Removed components are cleaned up through `isolateModule.processRemovals()`
+
+## Pros and Cons
+
+### Advantages of lit-dom
+
+**🎯 Modern Template Syntax**
+- Familiar HTML-like syntax with JavaScript expressions
+- Better IDE support with syntax highlighting
+- More readable for designers and frontend developers
+
+**📦 Smaller Bundle Size**
+- lit-html is more lightweight than Snabbdom
+- Better for applications where bundle size matters
+- Faster initial loading
+
+**⚡ Performance Benefits**
+- lit-html's template literal parsing is very efficient
+- Targeted DOM updates without full virtual DOM diffing
+- Better performance for frequent updates
+
+**🔧 Advanced Template Features**
+- Built-in directives (`repeat`, `guard`, `ifDefined`, etc.)
+- Server-side rendering support
+- Progressive enhancement friendly
+
+**🌐 Ecosystem Integration**
+- Works well with Lit components
+- Compatible with web components
+- Modern web standards alignment
+
+### Disadvantages of lit-dom
+
+**🆕 Newer Technology**
+- Less battle-tested than the native DOM driver
+- Smaller community and ecosystem
+- Fewer third-party tools and extensions
+
+**🐛 Different Debugging Experience**
+- Template errors show differently than JSX/hyperscript
+- Browser dev tools integration differs
+- Learning curve for developers familiar with virtual DOM
+
+**📚 Learning Curve**
+- lit-html specific concepts and patterns
+- Different mental model from virtual DOM
+- Template literal constraints and gotchas
+
+**🔄 Migration Complexity**
+- Converting from native DOM driver requires template rewrites
+- Different component patterns and best practices
+- Potential integration issues with existing Cycle.js libraries
+
+## Usage Examples
+
+### Basic Component
+
+```javascript
+import {html} from '@cycle/lit-dom';
+
+function Counter(sources) {
+  const increment$ = sources.DOM.select('.increment').events('click');
+  const decrement$ = sources.DOM.select('.decrement').events('click');
+  
+  const count$ = merge(
+    increment$.pipe(map(() => +1)),
+    decrement$.pipe(map(() => -1))
+  ).pipe(
+    startWith(0),
+    scan((count, delta) => count + delta)
+  );
+  
+  const vdom$ = count$.pipe(
+    map(count => html`
+      <div class="counter">
+        <button class="decrement">-</button>
+        <span class="count">${count}</span>
+        <button class="increment">+</button>
+      </div>
+    `)
+  );
+  
+  return {
+    DOM: vdom$
+  };
+}
+```
+
+### Isolated Components
+
+```javascript
+import isolate from '@cycle/isolate';
+
+function TodoItem(sources) {
+  const props$ = sources.props$ || of({text: '', completed: false});
+  
+  const toggle$ = sources.DOM.select('.toggle').events('click');
+  const remove$ = sources.DOM.select('.remove').events('click');
+  
+  const vdom$ = props$.pipe(
+    map(props => html`
+      <li class="todo-item ${props.completed ? 'completed' : ''}">
+        <input type="checkbox" class="toggle" .checked=${props.completed}>
+        <span class="text">${props.text}</span>
+        <button class="remove">×</button>
+      </li>
+    `)
+  );
+  
+  return {
+    DOM: vdom$,
+    toggle$: toggle$.pipe(mapTo(props.id)),
+    remove$: remove$.pipe(mapTo(props.id))
+  };
+}
+
+// Usage with isolation
+function TodoList(sources) {
+  const items$ = sources.items$ || of([]);
+  
+  const isolatedItems$ = items$.pipe(
+    map(items => items.map(item => 
+      isolate(TodoItem, `todo-${item.id}`)({
+        ...sources,
+        props$: of(item)
+      })
+    ))
+  );
+  
+  // Collect sinks from isolated components
+  const itemsDOM$ = isolatedItems$.pipe(
+    map(items => items.map(item => item.DOM)),
+    map(doms => doms.length > 0 ? combineLatest(doms) : of([])),
+    switchAll()
+  );
+  
+  const vdom$ = itemsDOM$.pipe(
+    map(itemTemplates => html`
+      <ul class="todo-list">
+        ${itemTemplates}
+      </ul>
+    `)
+  );
+  
+  return {
+    DOM: vdom$
+  };
+}
+```
+
+### Dynamic Component Creation
+
+```javascript
+function App(sources) {
+  const addItem$ = sources.DOM.select('.add').events('click');
+  
+  const items$ = addItem$.pipe(
+    scan((items, _) => [...items, {
+      id: Date.now(),
+      text: `Item ${items.length + 1}`,
+      completed: false
+    }], [])
+  );
+  
+  // Components are created dynamically as items change
+  const dynamicComponents$ = items$.pipe(
+    map(items => items.map(item => 
+      isolate(TodoItem, `dynamic-${item.id}`)({
+        ...sources,
+        props$: of(item)
+      })
+    ))
+  );
+  
+  // Handle component events
+  const componentActions$ = dynamicComponents$.pipe(
+    map(components => merge(
+      ...components.map(c => c.remove$.pipe(map(id => ({type: 'REMOVE', id})))),
+      ...components.map(c => c.toggle$.pipe(map(id => ({type: 'TOGGLE', id}))))
+    )),
+    switchAll()
+  );
+  
+  return {
+    DOM: vdom$,
+    actions: componentActions$
+  };
+}
+```
 
 ## Installation
 
@@ -17,19 +382,12 @@ A high-performance DOM driver for Cycle.js based on lit-html and RxJS.
 npm install @cycle/lit-dom lit-html rxjs
 ```
 
-## Requirements
-
-- Node.js >= 18.0.0
-- TypeScript >= 5.0.0
-- RxJS >= 7.0.0
-- lit-html >= 3.0.0
-
 ## Basic Usage
 
 ```typescript
 import {run} from '@cycle/run';
 import {makeLitDOMDriver, html} from '@cycle/lit-dom';
-import {map} from 'rxjs/operators';
+import {map, scan, startWith} from 'rxjs/operators';
 
 function main(sources) {
   const click$ = sources.DOM.select('.button').events('click');
@@ -60,67 +418,63 @@ const drivers = {
 run(main, drivers);
 ```
 
-## Performance Features
+## Best Practices
 
-### Template Memoization
+### 1. Component Design
+- Keep components pure and functional
+- Use `isolate()` for reusable components
+- Separate concerns: view, events, and state logic
 
-```typescript
-import {memoizeTemplate, memo} from '@cycle/lit-dom';
+### 2. Template Optimization
+- Use template literal expressions efficiently
+- Leverage lit-html directives for common patterns
+- Avoid complex computations in templates
 
-// Memoize expensive template computations
-const expensiveTemplate = memoizeTemplate((data: ComplexData) => {
-  return html`<div>${processComplexData(data)}</div>`;
-});
+### 3. Performance Considerations
+- Use `shareReplay(1)` for expensive computed streams
+- Consider component granularity for update efficiency
+- Profile template rendering in performance-critical applications
 
-// Memoize entire components
-const MemoizedComponent = memo((props: {items: Item[]}) => {
-  return html`
-    <ul>
-      ${props.items.map(item => html`<li>${item.name}</li>`)}
-    </ul>
-  `;
-});
+### 4. Debugging Tips
+- Use browser dev tools to inspect template rendering
+- Add debugging operators (`tap`, `do`) to trace stream flow
+- Test isolated components independently
+
+## Migration from Native DOM Driver
+
+### 1. Template Conversion
+```javascript
+// Before (hyperscript)
+div('.container', [
+  h1('Title'),
+  button({class: 'btn'}, 'Click')
+])
+
+// After (lit-html)
+html`
+  <div class="container">
+    <h1>Title</h1>
+    <button class="btn">Click</button>
+  </div>
+`
 ```
 
-### Stream Optimization
+### 2. Event Handling
+```javascript
+// Before
+sources.DOM.select('.btn').events('click')
 
-```typescript
-import {debounceTemplate, throttleTemplate, distinctTemplates, animationFrame} from '@cycle/lit-dom';
-
-const optimizedTemplate$ = template$.pipe(
-  distinctTemplates(), // Only emit when template actually changes
-  debounceTemplate(16), // Debounce rapid changes
-  animationFrame() // Sync with animation frames
-);
+// After (same)
+sources.DOM.select('.btn').events('click')
 ```
 
-## Isolation
+### 3. Property Binding
+```javascript
+// Before
+input({props: {value: text, checked: isChecked}})
 
-The driver fully supports Cycle.js isolation for component encapsulation:
-
-```typescript
-import {isolate} from '@cycle/isolate';
-
-function Counter(sources) {
-  // Component implementation
-  return {DOM: vdom$};
-}
-
-function main(sources) {
-  const counter1 = isolate(Counter, 'counter1')(sources);
-  const counter2 = isolate(Counter, 'counter2')(sources);
-  
-  const vdom$ = combineLatest([counter1.DOM, counter2.DOM]).pipe(
-    map(([vdom1, vdom2]) => html`
-      <div>
-        <div class="counter1">${vdom1}</div>
-        <div class="counter2">${vdom2}</div>
-      </div>
-    `)
-  );
-  
-  return {DOM: vdom$};
-}
+// After
+html`<input .value=${text} .checked=${isChecked}>`
 ```
 
 ## API Reference
@@ -145,25 +499,26 @@ The DOM source provides methods for querying the DOM and listening to events.
 - `elements(): Observable<Element[]>` - Get selected elements
 - `element(): Observable<Element>` - Get first selected element
 
-### Performance Utilities
+## Contributing
 
-- `debounceTemplate(time?: number)` - Debounce template updates
-- `throttleTemplate(time?: number)` - Throttle template updates  
-- `distinctTemplates()` - Only emit distinct templates
-- `animationFrame()` - Sync with requestAnimationFrame
-- `batchTemplates(windowTime?: number)` - Batch template updates
-- `memoizeTemplate(fn, keyFn?)` - Memoize template functions
-- `memo(component, areEqual?)` - Memoize components
-- `shallowEqual(a, b)` - Shallow equality comparison
+We welcome contributions! Please see the main Cycle.js [contributing guidelines](../CONTRIBUTING.md).
 
-## Differences from @cycle/dom
+### Development Setup
 
-1. **Rendering Engine**: Uses lit-html instead of Snabbdom for more efficient updates
-2. **Stream Library**: Built specifically for RxJS instead of xstream
-3. **Performance**: Includes built-in performance optimization utilities
-4. **Bundle Size**: Smaller footprint due to focused implementation
-5. **Type Safety**: Enhanced TypeScript support throughout
+```bash
+pnpm install
+pnpm run build
+pnpm run test
+```
+
+### Running Examples
+
+```bash
+cd examples/todo-isolate
+pnpm install
+pnpm run dev
+```
 
 ## License
 
-MIT
+MIT © [Cycle.js community](https://github.com/cyclejs)
