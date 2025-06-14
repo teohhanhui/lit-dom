@@ -506,17 +506,17 @@ We welcome contributions! Please see the main Cycle.js [contributing guidelines]
 ### Development Setup
 
 ```bash
-pnpm install
-pnpm run build
-pnpm run test
+yarn install
+yarn build
+yarn test
 ```
 
 ### Running Examples
 
 ```bash
 cd examples/todo-isolate
-pnpm install
-pnpm run dev
+yarn install
+yarn dev
 ```
 
 ## License
