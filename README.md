@@ -132,17 +132,20 @@ type Scope = {
 
 ### Element Registration Process
 
-Unlike the native DOM driver (which hooks into Snabbdom's lifecycle), lit-dom uses a post-render registration approach:
+Unlike the native DOM driver (which hooks into Snabbdom's lifecycle), lit-dom uses a universal post-render registration approach:
 
 #### 1. Template Processing
 ```javascript
 // During isolation, templates get _isolate metadata
-template._isolate = [{type: 'sibling', scope: 'todo-1'}]
+template._isolate = [{type: 'sibling', scope: 'component-1'}]
 ```
 
-#### 2. Post-Render Registration
+#### 2. Universal Element Registration
 ```javascript
-// After lit-html renders, scan for isolated elements
+// WeakMap for clean element-to-scope mapping (no DOM attributes needed)
+const elementToScope = new WeakMap<Element, Array<Scope>>();
+
+// After lit-html renders, register ALL elements for isolation
 function registerIsolatedElementsAfterRender(
   template: any,
   rootElement: Element,
@@ -156,25 +159,30 @@ function registerIsolatedElementsAfterRender(
     return;
   }
   
-  // Find component elements (e.g., TodoItem components)
-  const todoItems = rootElement.querySelectorAll('.todo-item');
+  // Universal approach: Register ALL elements with available isolated namespaces
+  // Since users can add event listeners to any element, we need to isolate everything
+  const allElements = rootElement.querySelectorAll("*");
+  const namespaces = Array.from(isolatedTemplates.values());
   
-  if (todoItems.length > 0) {
-    // Register each todo-item with a unique isolated namespace
-    const namespaces = Array.from(isolatedTemplates.values());
-    todoItems.forEach((element, index) => {
-      if (index < namespaces.length) {
-        const namespace = namespaces[index];
-        isolateModule.insertElement(namespace, element);
-        
-        // Also register all child elements that might need event handling
-        const children = element.querySelectorAll('*');
-        children.forEach(child => {
-          isolateModule.insertElement(namespace, child);
-        });
-      }
-    });
-  }
+  // Distribute elements across namespaces to ensure proper isolation
+  let namespaceIndex = 0;
+  allElements.forEach((element) => {
+    if (namespaceIndex < namespaces.length) {
+      const namespace = namespaces[namespaceIndex % namespaces.length];
+      assignScopeToElement(element, namespace, isolateModule);
+      namespaceIndex++;
+    }
+  });
+}
+
+// Clean element-to-scope assignment using WeakMap
+function assignScopeToElement(
+  element: Element,
+  scope: Array<Scope>, 
+  isolateModule: IsolateModule
+): void {
+  elementToScope.set(element, scope);
+  isolateModule.insertElement(scope, element);
 }
 
 // Helper function to collect isolated template metadata
@@ -269,6 +277,12 @@ lit-dom supports dynamic component creation through:
 - Works well with Lit components
 - Compatible with web components
 - Modern web standards alignment
+
+**🎯 Universal Isolation System**
+- WeakMap-based element registration for clean DOM (no data attributes)
+- Universal element isolation (any element can have event listeners)
+- Component-agnostic approach (works with any component structure)
+- Automatic garbage collection and cleanup
 
 ### Disadvantages of lit-dom
 

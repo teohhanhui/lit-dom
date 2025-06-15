@@ -78,7 +78,7 @@ function addIsolationToLitTemplate(
     const newTemplate = {...template};
     
     newTemplate._$litType$ = template._$litType$;
-    newTemplate.strings = template.strings;
+    newTemplate.strings = injectNamespaceMarker(template.strings, newNamespace);
     newTemplate.values = template.values.map((value: any) => {
       if (typeof value === 'object' && value && '_$litDirective$' in value) {
         return {...value, _isolate: newNamespace};
@@ -98,6 +98,7 @@ function addIsolationToLitTemplate(
     const newTemplate = {...template};
     
     newTemplate._$litType$ = template._$litType$;
+    newTemplate.strings = injectNamespaceMarker(template.strings, newNamespace);
     newTemplate.values = template.values.map((value: any) => {
       if (typeof value === 'object' && value && '_$litDirective$' in value) {
         return {...value, _isolate: newNamespace};
@@ -113,6 +114,36 @@ function addIsolationToLitTemplate(
   }
   
   return template;
+}
+
+function injectNamespaceMarker(strings: TemplateStringsArray, namespace: Array<Scope>): TemplateStringsArray {
+  if (!strings || strings.length === 0) {
+    return strings;
+  }
+  
+  // Create a namespace ID from the scope chain
+  const namespaceId = namespace.map(s => s.scope).join('-');
+  
+  // Clone the strings array
+  const newStrings = [...strings];
+  
+  // Inject the marker in the first string (usually the opening tag)
+  if (newStrings[0]) {
+    // Look for the first opening tag and inject the marker
+    const firstString = newStrings[0];
+    const tagMatch = firstString.match(/^(\s*<[^>\s]+)/);
+    
+    if (tagMatch) {
+      // Insert the marker attribute right after the tag name
+      newStrings[0] = firstString.replace(
+        tagMatch[1],
+        `${tagMatch[1]} data-temp-ns="${namespaceId}"`
+      );
+    }
+  }
+  
+  // Return as TemplateStringsArray-like object
+  return Object.assign(newStrings, { raw: newStrings }) as TemplateStringsArray;
 }
 
 export {getScopeObj};
