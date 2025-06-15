@@ -132,20 +132,40 @@ type Scope = {
 
 ### Element Registration Process
 
-Unlike the native DOM driver (which hooks into Snabbdom's lifecycle), lit-dom uses a universal post-render registration approach:
+Unlike the native DOM driver (which hooks into Snabbdom's lifecycle), lit-dom uses a **template injection approach** for precise isolation:
 
-#### 1. Template Processing
+#### 1. Template Injection (Sink Isolation)
 ```javascript
-// During isolation, templates get _isolate metadata
-template._isolate = [{type: 'sibling', scope: 'component-1'}]
+// During sink isolation, templates get temporary namespace markers
+function injectNamespaceMarker(
+  strings: TemplateStringsArray, 
+  namespace: Array<Scope>
+): TemplateStringsArray {
+  const namespaceId = namespace.map(s => s.scope).join('-');
+  const newStrings = [...strings];
+  
+  if (newStrings[0]) {
+    const firstString = newStrings[0];
+    const tagMatch = firstString.match(/^(\s*<[^>\s]+)/);
+    if (tagMatch) {
+      // Inject marker into root element of template
+      newStrings[0] = firstString.replace(
+        tagMatch[1], 
+        `${tagMatch[1]} data-temp-ns="${namespaceId}"`
+      );
+    }
+  }
+  
+  return Object.assign(newStrings, { raw: newStrings }) as TemplateStringsArray;
+}
 ```
 
-#### 2. Universal Element Registration
+#### 2. Tree-Walking Namespace Assignment
 ```javascript
-// WeakMap for clean element-to-scope mapping (no DOM attributes needed)
+// WeakMap for clean element-to-scope mapping (no permanent DOM attributes)
 const elementToScope = new WeakMap<Element, Array<Scope>>();
 
-// After lit-html renders, register ALL elements for isolation
+// After lit-html renders, find elements with temporary markers and walk DOM tree
 function registerIsolatedElementsAfterRender(
   template: any,
   rootElement: Element,
@@ -159,19 +179,41 @@ function registerIsolatedElementsAfterRender(
     return;
   }
   
-  // Universal approach: Register ALL elements with available isolated namespaces
-  // Since users can add event listeners to any element, we need to isolate everything
-  const allElements = rootElement.querySelectorAll("*");
-  const namespaces = Array.from(isolatedTemplates.values());
+  // Find all elements with temporary namespace markers
+  const markedElements = Array.from(rootElement.querySelectorAll("[data-temp-ns]"));
   
-  // Distribute elements across namespaces to ensure proper isolation
-  let namespaceIndex = 0;
-  allElements.forEach((element) => {
-    if (namespaceIndex < namespaces.length) {
-      const namespace = namespaces[namespaceIndex % namespaces.length];
-      assignScopeToElement(element, namespace, isolateModule);
-      namespaceIndex++;
+  markedElements.forEach((element) => {
+    const namespaceId = element.getAttribute("data-temp-ns");
+    if (namespaceId) {
+      // Find the corresponding namespace from our collected templates
+      const namespace = findNamespaceById(namespaceId, isolatedTemplates);
+      if (namespace) {
+        // Walk the DOM tree starting from this element
+        walkDOMTree(element, namespace, isolateModule);
+      }
+      // Clean up the temporary marker
+      element.removeAttribute("data-temp-ns");
     }
+  });
+}
+
+// Tree-walking respects component boundaries
+function walkDOMTree(
+  element: Element, 
+  namespace: Array<Scope>, 
+  isolateModule: IsolateModule
+): void {
+  // Assign this element to the namespace
+  assignScopeToElement(element, namespace, isolateModule);
+  
+  // Recursively assign all children to the same namespace
+  // unless they have their own namespace marker
+  Array.from(element.children).forEach((child) => {
+    if (!child.hasAttribute("data-temp-ns")) {
+      // Child doesn't start a new namespace, so it inherits the parent's
+      walkDOMTree(child, namespace, isolateModule);
+    }
+    // If child has data-temp-ns, it will be processed in its own iteration
   });
 }
 
@@ -345,6 +387,7 @@ function Counter(sources) {
 
 ```javascript
 import isolate from '@cycle/isolate';
+import {from} from 'rxjs'; // For stream conversion
 
 function TodoItem(sources) {
   const props$ = sources.props$ || of({text: '', completed: false});
@@ -383,8 +426,9 @@ function TodoList(sources) {
   );
   
   // Collect sinks from isolated components
+  // Note: @cycle/isolate returns xstream, so convert to RxJS
   const itemsDOM$ = isolatedItems$.pipe(
-    map(items => items.map(item => item.DOM)),
+    map(items => items.map(item => from(item.DOM))), // Convert xstream to RxJS
     map(doms => doms.length > 0 ? combineLatest(doms) : of([])),
     switchAll()
   );
@@ -446,13 +490,15 @@ function App(sources) {
 ## Installation
 
 ```bash
-npm install @cycle/lit-dom lit-html rxjs
+npm install @cycle/lit-dom lit-html rxjs @cycle/rxjs-run
 ```
+
+**Note**: When using `@cycle/isolate` with lit-dom, we recommend using `@cycle/rxjs-run` instead of `@cycle/run` for better RxJS stream compatibility.
 
 ## Basic Usage
 
 ```typescript
-import {run} from '@cycle/run';
+import {run} from '@cycle/rxjs-run'; // Use RxJS-specific runner for best compatibility
 import {makeLitDOMDriver, html} from '@cycle/lit-dom';
 import {map, scan, startWith} from 'rxjs/operators';
 
@@ -485,6 +531,56 @@ const drivers = {
 run(main, drivers);
 ```
 
+## Stream Compatibility with @cycle/isolate
+
+When using `@cycle/isolate` with lit-dom, there are important stream compatibility considerations:
+
+### The Challenge
+- **lit-dom driver**: Returns RxJS Observables 
+- **@cycle/isolate**: Returns xstream Stream objects
+- **RxJS operators**: Expect RxJS Observables
+
+### Recommended Solutions
+
+#### Option 1: Use @cycle/rxjs-run (Recommended)
+```javascript
+import {run} from '@cycle/rxjs-run'; // Instead of '@cycle/run'
+import {from} from 'rxjs';
+
+// Explicit conversion still needed for isolated component streams
+const itemsDOM$ = isolatedItems$.pipe(
+  map(items => items.map(item => from(item.DOM))), // Convert xstream to RxJS
+  map(doms => combineLatest(doms)),
+  switchAll()
+);
+```
+
+#### Option 2: Custom Adapter Setup
+```javascript
+import {setAdapt} from '@cycle/run/lib/adapt.js';
+import {Observable} from 'rxjs';
+
+// Set up custom xstream-to-RxJS adapter
+setAdapt(function adaptXstreamToRx(stream) {
+  if (stream && typeof stream.subscribe === 'function') {
+    return new Observable(subscriber => {
+      const subscription = stream.subscribe({
+        next: value => subscriber.next(value),
+        error: err => subscriber.error(err),
+        complete: () => subscriber.complete()
+      });
+      return () => subscription?.unsubscribe?.();
+    });
+  }
+  return stream;
+});
+```
+
+### Why This Happens
+- `@cycle/isolate` is designed to be stream-library agnostic
+- It uses the global adapter to convert between stream types
+- lit-dom uses RxJS, so isolated components need conversion
+
 ## Best Practices
 
 ### 1. Component Design
@@ -492,17 +588,22 @@ run(main, drivers);
 - Use `isolate()` for reusable components
 - Separate concerns: view, events, and state logic
 
-### 2. Template Optimization
+### 2. Stream Management
+- Use `@cycle/rxjs-run` for consistent RxJS behavior
+- Convert isolated component streams with `from()` when needed
+- Consider setting up custom adapters for complex applications
+
+### 3. Template Optimization
 - Use template literal expressions efficiently
 - Leverage lit-html directives for common patterns
 - Avoid complex computations in templates
 
-### 3. Performance Considerations
+### 4. Performance Considerations
 - Use `shareReplay(1)` for expensive computed streams
 - Consider component granularity for update efficiency
 - Profile template rendering in performance-critical applications
 
-### 4. Debugging Tips
+### 5. Debugging Tips
 - Use browser dev tools to inspect template rendering
 - Add debugging operators (`tap`, `do`) to trace stream flow
 - Test isolated components independently

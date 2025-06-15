@@ -2,11 +2,6 @@ import {map} from 'rxjs/operators';
 import {LitTemplate, Scope, IsolateSink} from './types';
 import {getScopeObj} from './utils';
 
-// Type for generic stream that could be RxJS or xstream
-interface StreamLike<T> {
-  pipe?: (operator: any) => StreamLike<T>;
-  map?: (project: (value: T) => any) => StreamLike<any>;
-}
 
 export function makeIsolateSink<T extends LitTemplate>(
   namespace: Array<Scope>
@@ -16,103 +11,66 @@ export function makeIsolateSink<T extends LitTemplate>(
       return sink;
     }
 
-    const streamSink = sink as StreamLike<T>;
+    // Create the new namespace including the current scope
+    const scopeObj = getScopeObj(scope);
+    const newNamespace = namespace.concat([scopeObj]);
 
-    // Check if sink has pipe method (RxJS) or map method (xstream)
+    const streamSink = sink as any;
+
+    // Check if sink has pipe method (RxJS)
     if (streamSink && typeof streamSink.pipe === 'function') {
-      // RxJS stream
+      // RxJS stream - use pipe and map
       return streamSink.pipe(
         map((template: any) => {
-          if (!template || typeof template === 'string' || typeof template === 'number' || typeof template === 'boolean') {
-            return addIsolationToTemplate(template as T, namespace, scope);
-          }
-          
-          if (template && typeof template === 'object' && 'template' in template) {
-            return addIsolationToLitTemplate(template as any, namespace, scope);
-          }
-          
-          return template;
+          return addIsolationToTemplate(template, newNamespace);
         })
       );
     } else if (streamSink && typeof streamSink.map === 'function') {
-      // xstream or similar
-      return streamSink.map((template: T) => {
-        if (!template || typeof template === 'string' || typeof template === 'number' || typeof template === 'boolean') {
-          return addIsolationToTemplate(template, namespace, scope);
-        }
-        
-        if (template && typeof template === 'object' && ('_$litType$' in template || 'template' in template)) {
-          return addIsolationToLitTemplate(template as any, namespace, scope);
-        }
-        
-        return template;
+      // xstream or similar - use map directly
+      return streamSink.map((template: any) => {
+        return addIsolationToTemplate(template, newNamespace);
       });
     } else {
       // Fallback - return sink as-is
-      console.warn('Unable to apply isolation - sink does not have pipe or map method', sink);
+      console.warn('Unable to apply isolation - sink does not have pipe or map method', typeof streamSink, streamSink);
       return sink;
     }
   };
 }
 
-function addIsolationToTemplate<T extends LitTemplate>(
-  template: T,
-  _namespace: Array<Scope>,
-  _scope: string
-): T {
-  // For simple templates (strings, numbers, etc.), return as-is
-  // Isolation is handled at the component level
-  return template;
-}
-
-function addIsolationToLitTemplate(
+function addIsolationToTemplate(
   template: any,
-  namespace: Array<Scope>,
-  scope: string
+  namespace: Array<Scope>
 ): any {
-  const scopeObj = getScopeObj(scope);
-  const newNamespace = namespace.concat([scopeObj]);
+  // For simple templates (strings, numbers, null, etc.), return as-is
+  if (!template || typeof template !== 'object') {
+    return template;
+  }
   
-  // Handle lit-html templates (have _$litType$ and values)
-  if (template && template._$litType$ && template.values) {
+  // Handle lit-html templates (have _$litType$ and strings)
+  if (template._$litType$ && template.strings) {
     const newTemplate = {...template};
     
-    newTemplate._$litType$ = template._$litType$;
-    newTemplate.strings = injectNamespaceMarker(template.strings, newNamespace);
-    newTemplate.values = template.values.map((value: any) => {
-      if (typeof value === 'object' && value && '_$litDirective$' in value) {
-        return {...value, _isolate: newNamespace};
-      }
-      return value;
-    });
+    // Inject namespace marker into template strings
+    newTemplate.strings = injectNamespaceMarker(template.strings, namespace);
     
-    if (!newTemplate._isolate) {
-      newTemplate._isolate = newNamespace;
+    // Copy values and add isolation info to directives
+    if (template.values) {
+      newTemplate.values = template.values.map((value: any) => {
+        if (typeof value === 'object' && value && '_$litDirective$' in value) {
+          return {...value, _isolate: namespace};
+        }
+        return value;
+      });
     }
+    
+    // Add isolation metadata to template
+    newTemplate._isolate = namespace;
     
     return newTemplate;
   }
   
-  // Handle other template formats (legacy compatibility)
-  if (template && template.template && template.values) {
-    const newTemplate = {...template};
-    
-    newTemplate._$litType$ = template._$litType$;
-    newTemplate.strings = injectNamespaceMarker(template.strings, newNamespace);
-    newTemplate.values = template.values.map((value: any) => {
-      if (typeof value === 'object' && value && '_$litDirective$' in value) {
-        return {...value, _isolate: newNamespace};
-      }
-      return value;
-    });
-    
-    if (!newTemplate._isolate) {
-      newTemplate._isolate = newNamespace;
-    }
-    
-    return newTemplate;
-  }
-  
+  // For other objects, return as-is
   return template;
 }
 

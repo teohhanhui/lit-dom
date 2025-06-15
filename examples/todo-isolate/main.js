@@ -1,4 +1,4 @@
-import { run } from "@cycle/run";
+import { run } from "@cycle/rxjs-run";
 import isolate from "@cycle/isolate";
 import { makeLitDOMDriver, html } from "../../lib/es6/index.js";
 import { map, scan, startWith, filter, shareReplay } from "rxjs/operators";
@@ -271,7 +271,7 @@ function main(sources) {
     map((doms) => {
       console.log("DOM streams:", doms.length, doms);
       if (doms.length > 0) {
-        // Need to convert xstreams back to RxJS for combineLatest
+        // Convert from @cycle/isolate streams to RxJS for combineLatest
         const rxjsDoms = doms.map((d) => from(d));
         return combineLatest(rxjsDoms);
       }

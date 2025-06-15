@@ -251,10 +251,10 @@ export function makeLitDOMDriver(
       }),
     );
 
-    // Convert the SinkProxy/xstream to RxJS Observable
-    const templateObservable$ = from(
-      template$ as any,
-    ) as Observable<LitTemplate>;
+    // Convert to RxJS Observable if needed (handles xstream/adapted streams from @cycle/rxjs-run)
+    const templateObservable$ = template$ && typeof (template$ as any).pipe === 'function' 
+      ? template$ as Observable<LitTemplate>
+      : from(template$ as any) as Observable<LitTemplate>;
     const rememberedTemplate$ = templateObservable$.pipe(shareReplay(1));
 
     mutationConfirmed$.subscribe();

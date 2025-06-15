@@ -31,7 +31,7 @@
   "scripts": {
     "build": "yarn build-cjs && yarn build-es6",
     "build-cjs": "tsc --module commonjs --outDir ./lib/cjs",
-    "build-es6": "tsc --module es6 --outDir ./lib/es6",
+    "build-es6": "rollup -c rollup.config.js",
     "lint": "eslint src/**/*.ts --fix",
     "test": "ava",
     "test:watch": "ava --watch",
@@ -53,6 +53,7 @@
     ]
   },
   "dependencies": {
+    "@cycle/rxjs-run": "^10.5.0",
     "lit-html": "^3.3.0"
   },
   "devDependencies": {
@@ -60,6 +61,9 @@
     "@cycle/dom": "^23.1.0",
     "@cycle/isolate": "^5.2.0",
     "@cycle/run": "^5.7.0",
+    "@rollup/plugin-commonjs": "^28.0.5",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-typescript": "^12.1.2",
     "@types/node": "^24.0.1",
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",
@@ -68,6 +72,7 @@
     "es6-set": "^0.1.6",
     "eslint": "^9.29.0",
     "jsdom": "^26.1.0",
+    "rollup": "^4.43.0",
     "rxjs": "^7.8.2",
     "symbol-observable": "^4.0.0",
     "ts-node": "^10.9.2",

@@ -24,7 +24,7 @@ export class LitDOMSource {
         source._eventDelegator,
         source._name
       );
-    this.isolateSink = makeIsolateSink(this._namespace) as any;
+    this.isolateSink = makeIsolateSink(this._namespace);
   }
 
   private _elements(): Observable<Array<Element>> {
