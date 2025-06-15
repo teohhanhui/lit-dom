@@ -499,10 +499,6 @@ The DOM source provides methods for querying the DOM and listening to events.
 - `elements(): Observable<Element[]>` - Get selected elements
 - `element(): Observable<Element>` - Get first selected element
 
-## Contributing
-
-We welcome contributions! Please see the main Cycle.js [contributing guidelines](../CONTRIBUTING.md).
-
 ### Development Setup
 
 ```bash
@@ -521,4 +517,4 @@ yarn dev
 
 ## License
 
-MIT © [Cycle.js community](https://github.com/cyclejs)
+MIT
