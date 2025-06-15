@@ -42,4 +42,3 @@ export default class SymbolTree<T, U> {
     return JSON.stringify(path.map(this.keyFunc));
   }
 }
-

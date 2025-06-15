@@ -28,6 +28,10 @@
   "exclude": [
     "node_modules",
     "lib",
-    "test"
+    "test",
+    "**/*.js",
+    "**/*.d.ts",
+    "**/*.js.map",
+    "**/*.d.ts.map"
   ]
 }
