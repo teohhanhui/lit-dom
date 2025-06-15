@@ -143,20 +143,73 @@ template._isolate = [{type: 'sibling', scope: 'todo-1'}]
 #### 2. Post-Render Registration
 ```javascript
 // After lit-html renders, scan for isolated elements
-function registerIsolatedElementsAfterRender(template, rootElement, isolateModule) {
-  const isolatedTemplates = collectIsolatedTemplates(template);
-  const componentElements = rootElement.querySelectorAll('.todo-item');
+function registerIsolatedElementsAfterRender(
+  template: any,
+  rootElement: Element,
+  isolateModule: IsolateModule
+): void {
+  // Collect all isolated template metadata
+  const isolatedTemplates = new Map<string, Array<Scope>>();
+  collectIsolatedTemplates(template, isolatedTemplates);
   
-  // Register each element with its namespace
-  componentElements.forEach((element, index) => {
-    const namespace = isolatedTemplates[index];
-    isolateModule.insertElement(namespace, element);
-    
-    // Register child elements too
-    element.querySelectorAll('*').forEach(child => {
-      isolateModule.insertElement(namespace, child);
+  if (isolatedTemplates.size === 0) {
+    return;
+  }
+  
+  // Find component elements (e.g., TodoItem components)
+  const todoItems = rootElement.querySelectorAll('.todo-item');
+  
+  if (todoItems.length > 0) {
+    // Register each todo-item with a unique isolated namespace
+    const namespaces = Array.from(isolatedTemplates.values());
+    todoItems.forEach((element, index) => {
+      if (index < namespaces.length) {
+        const namespace = namespaces[index];
+        isolateModule.insertElement(namespace, element);
+        
+        // Also register all child elements that might need event handling
+        const children = element.querySelectorAll('*');
+        children.forEach(child => {
+          isolateModule.insertElement(namespace, child);
+        });
+      }
     });
-  });
+  }
+}
+
+// Helper function to collect isolated template metadata
+function collectIsolatedTemplates(
+  template: any,
+  isolated: Map<string, Array<Scope>>
+): void {
+  if (!template) return;
+
+  // Handle arrays of templates
+  if (Array.isArray(template)) {
+    template.forEach(t => collectIsolatedTemplates(t, isolated));
+    return;
+  }
+
+  // Handle lit-html templates with _isolate metadata
+  if (
+    template &&
+    typeof template === 'object' &&
+    '_isolate' in template &&
+    template._isolate &&
+    Array.isArray(template._isolate) &&
+    template._isolate.length > 0
+  ) {
+    // Create a signature for this isolated template
+    const signature = template._isolate.map((s: any) => s.scope || s).join('-');
+    isolated.set(signature, template._isolate);
+  }
+
+  // Recursively process template values
+  if (template && typeof template === 'object' && template.values) {
+    template.values.forEach((value: any) => {
+      collectIsolatedTemplates(value, isolated);
+    });
+  }
 }
 ```
 
