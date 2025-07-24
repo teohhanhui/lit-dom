@@ -1,6 +1,6 @@
 # @cycle/lit-dom
 
-A Cycle.js DOM driver powered by [lit-html](https://lit.dev/docs/libraries/lit-html/) for modern, efficient template rendering with full component isolation support.
+A Cycle.js DOM driver powered by [lit-html](https://lit.dev/docs/libraries/standalone-templates/) for modern, efficient template rendering with full component isolation support.
 
 ## Overview
 
